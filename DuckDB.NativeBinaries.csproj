@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    This project packages the pre‑built DuckDB shared libraries for each
+    supported platform.  It contains no managed code and simply lists
+    native assets as None items marked with Pack="true".  The Version
+    property must be kept in sync with the latest DuckDB release.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <PackageId>DuckDB.NativeBinaries</PackageId>
+    <Version>1.3.2</Version>
+    <Authors>DuckDB Community</Authors>
+    <Description>Pre‑compiled DuckDB shared libraries for Linux, Windows and macOS packaged as a NuGet dependency.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://duckdb.org/</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/duckdb/duckdb</RepositoryUrl>
+    <IncludeSymbols>false</IncludeSymbols>
+    <IncludeSource>false</IncludeSource>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="runtimes/linux-x64/native/libduckdb.so" Pack="true" PackagePath="runtimes/linux-x64/native" />
+    <None Include="runtimes/linux-arm64/native/libduckdb.so" Pack="true" PackagePath="runtimes/linux-arm64/native" />
+    <None Include="runtimes/win-x64/native/duckdb.dll" Pack="true" PackagePath="runtimes/win-x64/native" />
+    <None Include="runtimes/win-arm64/native/duckdb.dll" Pack="true" PackagePath="runtimes/win-arm64/native" />
+    <None Include="runtimes/osx-x64/native/libduckdb.dylib" Pack="true" PackagePath="runtimes/osx-x64/native" />
+    <None Include="runtimes/osx-arm64/native/libduckdb.dylib" Pack="true" PackagePath="runtimes/osx-arm64/native" />
+  </ItemGroup>
+
+</Project>

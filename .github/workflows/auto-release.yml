@@ -1,0 +1,85 @@
+name: Update DuckDB native binaries
+
+# This workflow checks the DuckDB GitHub repository for new releases.  When a
+# new version is detected it updates the project version, downloads the
+# latest shared libraries, builds the NuGet package and publishes it to
+# nuget.org.  Requires a `NUGET_API_KEY` secret for publishing.
+
+on:
+  schedule:
+    # Every Sunday at 03:00 UTC
+    - cron: '0 3 * * 0'
+  workflow_dispatch: {}
+
+jobs:
+  update-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Install jq
+      run: sudo apt-get update && sudo apt-get install -y jq
+
+    - name: Determine latest DuckDB release
+      id: get_version
+      run: |
+        latest=$(curl -s https://api.github.com/repos/duckdb/duckdb/releases/latest | jq -r '.tag_name' | sed 's/^v//')
+        echo "latest=$latest" >> "$GITHUB_OUTPUT"
+
+    - name: Read current package version
+      id: get_current
+      run: |
+        current=$(grep -oPm1 '(?<=<Version>)[^<]+' DuckDB.NativeBinaries.csproj)
+        echo "current=$current" >> "$GITHUB_OUTPUT"
+
+    - name: Check if update is needed
+      id: compare
+      run: |
+        if [ "${{ steps.get_version.outputs.latest }}" != "${{ steps.get_current.outputs.current }}" ]; then
+          echo "update=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "update=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Update version and fetch libraries
+      if: steps.compare.outputs.update == 'true'
+      run: |
+        new_version="${{ steps.get_version.outputs.latest }}"
+        echo "Updating to DuckDB $new_version"
+        # Update the project version
+        sed -i "s/<Version>[^<]*</<Version>${new_version}</" DuckDB.NativeBinaries.csproj
+        # Update default version in the fetch script (including the 'v' prefix)
+        sed -i "s/^DUCKDB_VERSION=.*/DUCKDB_VERSION=v${new_version}/" fetch_libs.sh
+        # Remove old runtime contents
+        rm -rf runtimes
+        # Fetch new libraries
+        DUCKDB_VERSION="v${new_version}" bash fetch_libs.sh
+        # Configure git user for commit
+        git config user.name "github-actions"
+        git config user.email "github-actions@users.noreply.github.com"
+        git add DuckDB.NativeBinaries.csproj fetch_libs.sh runtimes
+        git commit -m "Update DuckDB binaries to ${new_version}"
+
+    - name: Build NuGet package
+      if: steps.compare.outputs.update == 'true'
+      run: dotnet pack -c Release
+
+    - name: Publish package to nuget.org
+      if: steps.compare.outputs.update == 'true'
+      run: |
+        package_file="bin/Release/DuckDB.NativeBinaries.${{ steps.get_version.outputs.latest }}.nupkg"
+        dotnet nuget push "$package_file" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json
+
+    - name: Push changes back to repository
+      if: steps.compare.outputs.update == 'true'
+      uses: ad-m/github-push-action@v0.6.0
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        branch: ${{ github.ref_name }}
